@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"strings"
 
 	"github.com/cettoana/go-waveform"
-	"github.com/cettoana/go-waveform/image"
-
+	"github.com/go-audio/wav"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
@@ -80,27 +80,17 @@ func main() {
 
 			log.Info().Msg("read complete")
 
-			w := waveform.DecodeWav(b)
+			w := wav.NewDecoder(bytes.NewReader(b))
 
-			log.Info().Str("WaveFormat", w.WaveFormat.String()).Msg("fmt Chunk")
-			log.Info().Uint16("NumChannels", w.NumChannels).Msg("fmt Chunk")
+			log.Info().Uint16("NumChannels", w.NumChans).Msg("fmt Chunk")
 			log.Info().Uint32("SampleRate", w.SampleRate).Msg("fmt Chunk")
-			log.Info().Uint16("BitsPerSample", w.BitsPerSample).Msg("fmt Chunk")
-			log.Info().Uint32("BitsPerSample", w.DataChuckSize).Msg("data Chunk")
+			log.Info().Uint16("BitsPerSample", w.BitDepth).Msg("fmt Chunk")
 
-			data, err := w.GetData()
-			if err != nil {
-				log.Error().Msg(err.Error())
-				return err
-			}
-
-			if err := image.OutputWaveformImage(data, &image.Option{
+			if err := waveform.OutputWaveformImageWav(w, &waveform.Option{
 				FileName:   strings.Replace(fileName, ".wav", "", 1),
 				FileType:   format,
 				Width:      width,
-				Style:      "default",
 				Theme:      theme,
-				Fast:       false,
 				Resolution: resolution,
 			}); err != nil {
 				log.Error().Msg(err.Error())
