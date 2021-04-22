@@ -3,9 +3,7 @@ package waveform
 import (
 	"errors"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"io"
 	"math"
 	"time"
@@ -98,7 +96,7 @@ func (d *wavDecoder) readNSamples(buf []float64) ([]float64, error) {
 }
 
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
-func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (image.Image, error) {
+func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (io.Reader, error) {
 	d := &mp3Decoder{
 		Decoder: data,
 	}
@@ -109,7 +107,7 @@ func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (image.Image, err
 }
 
 // OutputWaveformImageWav outputs waveform image from *wav.Decoder.
-func OutputWaveformImageWav(data *wav.Decoder, option *Option) (image.Image, error) {
+func OutputWaveformImageWav(data *wav.Decoder, option *Option) (io.Reader, error) {
 	d := &wavDecoder{
 		Decoder: data,
 	}
@@ -125,7 +123,7 @@ func OutputWaveformImageWav(data *wav.Decoder, option *Option) (image.Image, err
 	}, option)
 }
 
-func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (image.Image, error) {
+func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (io.Reader, error) {
 	p, err := plot.New()
 	if err != nil {
 		return nil, err
@@ -203,7 +201,7 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 	go func() {
 		_, _ = wt.WriteTo(w)
 	}()
-	return png.Decode(r)
+	return r, nil
 }
 
 func getXYs(x int, s []float64, floor float64) *plotter.XYs {
