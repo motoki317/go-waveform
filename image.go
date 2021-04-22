@@ -200,6 +200,7 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 	r, w := io.Pipe()
 	go func() {
 		_, _ = wt.WriteTo(w)
+		_ = w.Close()
 	}()
 	return r, nil
 }
