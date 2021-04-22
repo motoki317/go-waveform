@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cettoana/go-waveform"
 	"github.com/go-audio/wav"
+	"github.com/motoki317/go-waveform"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"

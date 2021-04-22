@@ -1,4 +1,4 @@
-module github.com/cettoana/go-waveform
+module github.com/motoki317/go-waveform
 
 go 1.12
 
