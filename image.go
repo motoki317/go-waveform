@@ -3,7 +3,9 @@ package waveform
 import (
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
+	"image/png"
 	"io"
 	"math"
 	"time"
@@ -18,7 +20,6 @@ import (
 
 // Option image option
 type Option struct {
-	FileName   string
 	FileType   string
 	Resolution int
 	Width      int
@@ -97,37 +98,37 @@ func (d *wavDecoder) readNSamples(buf []float64) ([]float64, error) {
 }
 
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
-func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) error {
+func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (image.Image, error) {
 	d := &mp3Decoder{
 		Decoder: data,
 	}
 	return outputWaveformImage(d, int(data.Length()/4), &bound{
 		Upper: 32767,
 		Lower: -32768,
-	}, option, "")
+	}, option)
 }
 
 // OutputWaveformImageWav outputs waveform image from *wav.Decoder.
-func OutputWaveformImageWav(data *wav.Decoder, option *Option) error {
+func OutputWaveformImageWav(data *wav.Decoder, option *Option) (image.Image, error) {
 	d := &wavDecoder{
 		Decoder: data,
 	}
 	data.ReadInfo()
 	dur, err := data.Duration()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	byteLen := int((float64(dur) * float64(data.AvgBytesPerSec)) / float64(time.Second))
 	return outputWaveformImage(d, byteLen/int(data.BitDepth/8)/int(data.NumChans), &bound{
 		Upper: math.Pow(2, float64(data.BitDepth-1)) - 1,
 		Lower: -math.Pow(2, float64(data.BitDepth-1)),
-	}, option, "")
+	}, option)
 }
 
-func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option, postfix string) error {
+func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (image.Image, error) {
 	p, err := plot.New()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	floor := (bound.Upper + bound.Lower) / 2
@@ -157,7 +158,7 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 		expectBytes := min(m, sampleLength-i)
 		read, err := sample.readNSamples(buf[:expectBytes])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(read) == 0 {
 			break
@@ -166,7 +167,7 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 
 		l, err := plotter.NewLine(xys)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		l.LineStyle.Width = vg.Points(stroke)
@@ -194,9 +195,15 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 	p.Y.Max = bound.Upper
 	p.BackgroundColor = getBackgroundColor(option.Theme)
 
-	fileName := fmt.Sprintf("%s%s.%s", option.FileName, postfix, option.FileType)
-
-	return p.Save(vg.Points(width), vg.Points(540), fileName)
+	wt, err := p.WriterTo(vg.Points(width), vg.Points(540), option.FileType)
+	if err != nil {
+		return nil, err
+	}
+	r, w := io.Pipe()
+	go func() {
+		_, _ = wt.WriteTo(w)
+	}()
+	return png.Decode(r)
 }
 
 func getXYs(x int, s []float64, floor float64) *plotter.XYs {
