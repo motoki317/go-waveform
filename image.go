@@ -18,10 +18,23 @@ import (
 
 // Option image option
 type Option struct {
-	FileType   string
+	// FileType supported formats: eps, jpg|jpeg, pdf, png, svg, tex and tif|tiff.
+	// (*plot.Plot).WriterTo
+	// Required.
+	FileType string
+	// Resolution specifies the resolution of the
+	// Required.
 	Resolution int
-	Width      int
-	Theme      string
+	// Width specifies the width of the resulting image.
+	// Default: Resolution * 5
+	Width int
+	// Height specifies the height of the resulting image.
+	// default: 540
+	Height int
+	// Theme specifies the background theme.
+	//   - dark
+	//   - light
+	Theme string
 }
 
 // bound sample value upper and lower boundary
@@ -193,7 +206,11 @@ func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, o
 	p.Y.Max = bound.Upper
 	p.BackgroundColor = getBackgroundColor(option.Theme)
 
-	wt, err := p.WriterTo(vg.Points(width), vg.Points(540), option.FileType)
+	height := 540.
+	if option.Height > 0 {
+		height = float64(option.Height)
+	}
+	wt, err := p.WriterTo(vg.Points(width), vg.Points(height), option.FileType)
 	if err != nil {
 		return nil, err
 	}
