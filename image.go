@@ -144,6 +144,7 @@ func (s *svgWriter) write() error {
 	}
 
 	i := 0
+	lineNum := 0
 	buf := make([]float64, batchRead)
 	for i < s.sampleLength {
 		expectBytes := min(batchRead, s.sampleLength-i)
@@ -159,9 +160,10 @@ func (s *svgWriter) write() error {
 		x := float64(i) / float64(s.sampleLength) * width
 		y := (min - s.bound.Lower) / sampleHeight * height
 		h := (max - min) / sampleHeight * height
-		s.s.Rect(x, y, rectWidth, h, "fill:"+colorToHex(lineCol))
+		s.s.Rect(x, y, rectWidth, h, "fill:"+colorToHex(gradation(lineCol, lineNum)))
 
 		i += len(read)
+		lineNum++
 	}
 
 	return nil
