@@ -3,6 +3,7 @@ package waveform
 import (
 	"errors"
 	"fmt"
+	svg "github.com/ajstarks/svgo/float"
 	"image/color"
 	"io"
 	"math"
@@ -11,17 +12,10 @@ import (
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 	"github.com/hajimehoshi/go-mp3"
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/vg"
 )
 
 // Option image option
 type Option struct {
-	// FileType supported formats: eps, jpg|jpeg, pdf, png, svg, tex and tif|tiff.
-	// (*plot.Plot).WriterTo
-	// Required.
-	FileType string
 	// Resolution specifies the resolution of the
 	// Required.
 	Resolution int
@@ -29,12 +23,14 @@ type Option struct {
 	// Default: Resolution * 5
 	Width int
 	// Height specifies the height of the resulting image.
-	// default: 540
+	// Default: 540
 	Height int
-	// Theme specifies the background theme.
-	//   - dark
-	//   - light
-	Theme string
+	// Background specifies the color of the background.
+	// Default: none (transparent)
+	Background color.Color
+	// Color specifies the color of the waveform.
+	// Default: color.Black
+	Color color.Color
 }
 
 // bound sample value upper and lower boundary
@@ -108,6 +104,105 @@ func (d *wavDecoder) readNSamples(buf []float64) ([]float64, error) {
 	return buf[:read/numCh], nil
 }
 
+type svgWriter struct {
+	s            *svg.SVG
+	sample       float64Reader
+	sampleLength int
+	bound        *bound
+	option       *Option
+}
+
+func (s *svgWriter) write() error {
+	n := s.option.Resolution
+	batchRead := int(float64(s.sampleLength)/float64(n) + 0.5)
+	if n > s.sampleLength {
+		n = s.sampleLength
+		batchRead = 1
+	}
+
+	rectWidth := float64(2)
+	width := float64(n * 5)
+	height := 540.
+	if s.option.Width != 0 {
+		width = float64(s.option.Width)
+		rectWidth = width / float64(n) * 0.4
+	}
+	if s.option.Height > 0 {
+		height = float64(s.option.Height)
+	}
+
+	s.s.Start(width, height)
+	if s.option.Background != nil {
+		s.s.Rect(0, 0, width, height, "fill:"+colorToHex(s.option.Background))
+	}
+
+	floor := (s.bound.Upper + s.bound.Lower) / 2
+	sampleHeight := s.bound.Upper - s.bound.Lower
+	lineCol := s.option.Color
+	if lineCol == nil {
+		lineCol = color.Black
+	}
+
+	i := 0
+	buf := make([]float64, batchRead)
+	for i < s.sampleLength {
+		expectBytes := min(batchRead, s.sampleLength-i)
+		read, err := s.sample.readNSamples(buf[:expectBytes])
+		if err != nil {
+			return err
+		}
+		if len(read) == 0 {
+			break
+		}
+		min, max := getMinMax(floor, read)
+
+		x := float64(i) / float64(s.sampleLength) * width
+		y := (min - s.bound.Lower) / sampleHeight * height
+		h := (max - min) / sampleHeight * height
+		s.s.Rect(x, y, rectWidth, h, "fill:"+colorToHex(lineCol))
+
+		i += len(read)
+	}
+
+	return nil
+}
+
+func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (io.Reader, error) {
+	r, w := io.Pipe()
+	go func() {
+		s := svg.New(w)
+		writer := &svgWriter{
+			s:            s,
+			sample:       sample,
+			sampleLength: sampleLength,
+			bound:        bound,
+			option:       option,
+		}
+		_ = writer.write()
+		writer.s.End()
+		_ = w.Close()
+	}()
+	return r, nil
+}
+
+func getMinMax(floor float64, s []float64) (min, max float64) {
+	max, min = floor, floor
+
+	for _, y := range s {
+		if y > floor {
+			if y > max {
+				max = y
+			}
+		} else {
+			if y < min {
+				min = y
+			}
+		}
+	}
+
+	return
+}
+
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
 func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (io.Reader, error) {
 	d := &mp3Decoder{
@@ -134,128 +229,4 @@ func OutputWaveformImageWav(data *wav.Decoder, option *Option) (io.Reader, error
 		Upper: math.Pow(2, float64(data.BitDepth-1)) - 1,
 		Lower: -math.Pow(2, float64(data.BitDepth-1)),
 	}, option)
-}
-
-func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (io.Reader, error) {
-	p, err := plot.New()
-	if err != nil {
-		return nil, err
-	}
-
-	floor := (bound.Upper + bound.Lower) / 2
-
-	n := option.Resolution
-	m := int(float64(sampleLength)/float64(n) + 0.5)
-
-	if n > sampleLength {
-		n = sampleLength
-		m = 1
-	}
-
-	stroke := float64(2)
-	width := float64(n * 5)
-
-	if option.Width != 0 {
-		width = float64(option.Width)
-		stroke = width / float64(n) * 0.4
-	}
-
-	i := 0
-	d := 1
-	g := 155
-
-	buf := make([]float64, m)
-	for i < sampleLength {
-		expectBytes := min(m, sampleLength-i)
-		read, err := sample.readNSamples(buf[:expectBytes])
-		if err != nil {
-			return nil, err
-		}
-		if len(read) == 0 {
-			break
-		}
-		xys := getXYs(i, read, floor)
-
-		l, err := plotter.NewLine(xys)
-		if err != nil {
-			return nil, err
-		}
-
-		l.LineStyle.Width = vg.Points(stroke)
-		l.Color = &color.RGBA{R: 50, G: uint8(g), B: 240, A: 255}
-
-		p.Add(l)
-
-		g += d
-		i += len(read)
-
-		if g > 225 {
-			g = 225 - 1
-			d = -1
-		} else if g < 155 {
-			g = 156
-			d = 1
-		}
-	}
-
-	p.HideX()
-	p.HideY()
-	p.X.Min = 0
-	p.X.Max = float64(sampleLength)
-	p.Y.Min = bound.Lower
-	p.Y.Max = bound.Upper
-	p.BackgroundColor = getBackgroundColor(option.Theme)
-
-	height := 540.
-	if option.Height > 0 {
-		height = float64(option.Height)
-	}
-	wt, err := p.WriterTo(vg.Points(width), vg.Points(height), option.FileType)
-	if err != nil {
-		return nil, err
-	}
-	r, w := io.Pipe()
-	go func() {
-		_, _ = wt.WriteTo(w)
-		_ = w.Close()
-	}()
-	return r, nil
-}
-
-func getXYs(x int, s []float64, floor float64) *plotter.XYs {
-	max := floor
-	min := floor
-
-	for _, y := range s {
-		if y > floor {
-			if y > max {
-				max = y
-			}
-		} else {
-			if y < min {
-				min = y
-			}
-		}
-	}
-
-	return &plotter.XYs{
-		{X: float64(x), Y: min},
-		{X: float64(x), Y: max},
-	}
-}
-
-func getBackgroundColor(theme string) color.Color {
-	switch theme {
-	case "dark":
-		return color.Gray{Y: 16}
-	default:
-		return color.Gray{Y: 240}
-	}
-}
-
-func min(a, b int) int {
-	if a > b {
-		return b
-	}
-	return a
 }
