@@ -133,7 +133,7 @@ func (s *svgWriter) write() error {
 
 	s.s.Start(width, height)
 	if s.option.Background != nil {
-		s.s.Rect(0, 0, width, height, "fill:"+colorToHex(s.option.Background))
+		s.s.Rect(0, 0, width, height, `fill="`+colorToHex(s.option.Background)+`"`)
 	}
 
 	floor := (s.bound.Upper + s.bound.Lower) / 2
@@ -159,7 +159,7 @@ func (s *svgWriter) write() error {
 		x := float64(i) / float64(s.sampleLength) * width
 		y := (min - s.bound.Lower) / sampleHeight * height
 		h := (max - min) / sampleHeight * height
-		s.s.Rect(x, y, rectWidth, h, "fill:"+colorToHex(lineCol))
+		s.s.Rect(x, y, rectWidth, h, `fill="`+colorToHex(lineCol)+`"`)
 
 		i += len(read)
 	}
