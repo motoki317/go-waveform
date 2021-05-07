@@ -204,7 +204,17 @@ func getMinMax(floor float64, s []float64) (min, max float64) {
 }
 
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
-func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (io.Reader, error) {
+func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (r io.Reader, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else {
+				err = fmt.Errorf("recovered: %v", e)
+			}
+		}
+	}()
+
 	d := &mp3Decoder{
 		Decoder: data,
 	}
@@ -215,7 +225,17 @@ func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (io.Reader, error
 }
 
 // OutputWaveformImageWav outputs waveform image from *wav.Decoder.
-func OutputWaveformImageWav(data *wav.Decoder, option *Option) (io.Reader, error) {
+func OutputWaveformImageWav(data *wav.Decoder, option *Option) (r io.Reader, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else {
+				err = fmt.Errorf("recovered: %v", e)
+			}
+		}
+	}()
+
 	d := &wavDecoder{
 		Decoder: data,
 	}
