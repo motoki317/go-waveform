@@ -1,13 +1,15 @@
 package waveform
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	svg "github.com/ajstarks/svgo/float"
 	"image/color"
 	"io"
 	"math"
 	"time"
+
+	svg "github.com/ajstarks/svgo/float"
 
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
@@ -167,22 +169,33 @@ func (s *svgWriter) write() error {
 	return nil
 }
 
-func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (io.Reader, error) {
-	r, w := io.Pipe()
-	go func() {
-		s := svg.New(w)
-		writer := &svgWriter{
-			s:            s,
-			sample:       sample,
-			sampleLength: sampleLength,
-			bound:        bound,
-			option:       option,
+func outputWaveformImage(sample float64Reader, sampleLength int, bound *bound, option *Option) (r io.Reader, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = e
+			} else {
+				err = fmt.Errorf("recovered: %v", r)
+			}
 		}
-		_ = writer.write()
-		writer.s.End()
-		_ = w.Close()
 	}()
-	return r, nil
+
+	b := bytes.NewBuffer(make([]byte, 0))
+
+	s := svg.New(b)
+	writer := &svgWriter{
+		s:            s,
+		sample:       sample,
+		sampleLength: sampleLength,
+		bound:        bound,
+		option:       option,
+	}
+	if err = writer.write(); err != nil {
+		return
+	}
+	writer.s.End()
+
+	return b, nil
 }
 
 func getMinMax(floor float64, s []float64) (min, max float64) {
@@ -205,16 +218,6 @@ func getMinMax(floor float64, s []float64) (min, max float64) {
 
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
 func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (r io.Reader, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else {
-				err = fmt.Errorf("recovered: %v", e)
-			}
-		}
-	}()
-
 	d := &mp3Decoder{
 		Decoder: data,
 	}
@@ -226,16 +229,6 @@ func OutputWaveformImageMp3(data *mp3.Decoder, option *Option) (r io.Reader, err
 
 // OutputWaveformImageWav outputs waveform image from *wav.Decoder.
 func OutputWaveformImageWav(data *wav.Decoder, option *Option) (r io.Reader, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else {
-				err = fmt.Errorf("recovered: %v", e)
-			}
-		}
-	}()
-
 	d := &wavDecoder{
 		Decoder: data,
 	}
