@@ -238,6 +238,9 @@ func OutputWaveformImageWav(data *wav.Decoder, option *Option) (r io.Reader, err
 		return nil, err
 	}
 	byteLen := int((float64(dur) * float64(data.AvgBytesPerSec)) / float64(time.Second))
+	if data.BitDepth < 8 || data.NumChans == 0 {
+		return nil, fmt.Errorf("failed to retrieve correct bit depth / num channels (%d, %d)", data.BitDepth, data.NumChans)
+	}
 	return outputWaveformImage(d, byteLen/int(data.BitDepth/8)/int(data.NumChans), &bound{
 		Upper: math.Pow(2, float64(data.BitDepth-1)) - 1,
 		Lower: -math.Pow(2, float64(data.BitDepth-1)),
