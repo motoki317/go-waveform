@@ -99,6 +99,9 @@ func (d *wavDecoder) readNSamples(buf []float64) ([]float64, error) {
 		return nil, err
 	}
 
+	// workaround: https://github.com/motoki317/go-waveform/issues/1
+	read = min(read, len(d.buf.Data))
+
 	src := d.buf.Data[:read]
 	for i := 0; i < read/numCh; i++ {
 		buf[i] = float64(src[i*numCh])
