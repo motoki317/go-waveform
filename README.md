@@ -8,6 +8,6 @@
 </p>
 
 Golang project for the purpose of practicing, understanding golang and audio file format.
-Requires Go 1.12 or later.
+Requires Go 1.18 or later.
 
 **Forked from github.com/cettoana/go-waveform**
