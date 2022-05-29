@@ -3,7 +3,6 @@ package waveform
 import (
 	"bytes"
 	"fmt"
-	"image/color"
 	"io"
 	"math"
 	"time"
@@ -31,23 +30,12 @@ type svgWriter struct {
 }
 
 func (s *svgWriter) write() error {
-	n := s.option.Resolution
-	batchRead := int(float64(s.sampleLength)/float64(n) + 0.5)
-	if n > s.sampleLength {
-		n = s.sampleLength
-		batchRead = 1
-	}
+	res := float64(s.option.Resolution)
+	width := float64(s.option.Width)
+	height := float64(s.option.Height)
 
-	rectWidth := float64(2)
-	width := float64(n * 5)
-	height := 540.
-	if s.option.Width != 0 {
-		width = float64(s.option.Width)
-		rectWidth = width / float64(n) * 0.4
-	}
-	if s.option.Height > 0 {
-		height = float64(s.option.Height)
-	}
+	batchRead := int(float64(s.sampleLength)/res + 0.5)
+	rectWidth := width / res * 0.4 /* 40% of the width */
 
 	s.s.Start(width, height)
 	if s.option.Background != nil {
@@ -56,15 +44,11 @@ func (s *svgWriter) write() error {
 
 	floor := (s.bound.Upper + s.bound.Lower) / 2
 	sampleHeight := s.bound.Upper - s.bound.Lower
-	lineCol := s.option.Color
-	if lineCol == nil {
-		lineCol = color.Black
-	}
 
-	i := 0
+	readSamples := 0
 	buf := make([]float64, batchRead)
-	for i < s.sampleLength {
-		expectBytes := utils.Min(batchRead, s.sampleLength-i)
+	for readSamples < s.sampleLength {
+		expectBytes := utils.Min(batchRead, s.sampleLength-readSamples)
 		read, err := s.reader.ReadNSamples(buf[:expectBytes])
 		if err != nil {
 			return err
@@ -74,18 +58,23 @@ func (s *svgWriter) write() error {
 		}
 		min, max := utils.GetMinMax(floor, read)
 
-		x := float64(i) / float64(s.sampleLength) * width
+		x := float64(readSamples) / float64(s.sampleLength) * width
 		y := (min - s.bound.Lower) / sampleHeight * height
 		h := (max - min) / sampleHeight * height
-		s.s.Rect(x, y, rectWidth, h, `fill="`+utils.ColorToHex(lineCol)+`"`)
+		s.s.Rect(x, y, rectWidth, h, `fill="`+utils.ColorToHex(s.option.Color)+`"`)
 
-		i += len(read)
+		readSamples += len(read)
 	}
 
 	return nil
 }
 
-func outputWaveformImage(sample reader.Reader, sampleLength int, bound *bound, option *Option) (r io.Reader, err error) {
+func outputWaveformImage(reader reader.Reader, sampleLength int, bound *bound, option *Option) (r io.Reader, err error) {
+	if err := option.validate(); err != nil {
+		return nil, err
+	}
+	option.applyDefaults(sampleLength)
+
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(error); ok {
@@ -96,12 +85,10 @@ func outputWaveformImage(sample reader.Reader, sampleLength int, bound *bound, o
 		}
 	}()
 
-	b := bytes.NewBuffer(make([]byte, 0))
-
-	s := svg.New(b)
+	var b bytes.Buffer
 	writer := &svgWriter{
-		s:            s,
-		reader:       sample,
+		s:            svg.New(&b),
+		reader:       reader,
 		sampleLength: sampleLength,
 		bound:        bound,
 		option:       option,
@@ -111,7 +98,7 @@ func outputWaveformImage(sample reader.Reader, sampleLength int, bound *bound, o
 	}
 	writer.s.End()
 
-	return b, nil
+	return &b, nil
 }
 
 // OutputWaveformImageMp3 outputs waveform image from *mp3.Decoder.
