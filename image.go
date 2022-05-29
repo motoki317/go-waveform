@@ -43,6 +43,7 @@ func (s *svgWriter) write() error {
 		s.s.Rect(0, 0, width, height, `fill="`+utils.ColorToHex(s.option.Background)+`"`)
 	}
 
+	// TODO: advanced loudness calculation
 	readSamples := 0
 	buf := make([]float64, batchRead)
 	for readSamples < s.sampleLength {
