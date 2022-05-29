@@ -16,6 +16,9 @@ type Option struct {
 	// Height specifies the height of the resulting image in pixels.
 	// Default: 540 px
 	Height int
+	// Drawer specifies the algorithm to draw each bar's position and height.
+	// Default: DrawerMinMax
+	Drawer BarDrawer
 	// Background specifies the color of the background.
 	// Default: nil (transparent)
 	Background color.Color
@@ -41,6 +44,9 @@ func (o *Option) applyDefaults(sampleLength int) {
 	}
 	if o.Height == 0 {
 		o.Height = 540
+	}
+	if o.Drawer == nil {
+		o.Drawer = DrawerMinMax
 	}
 	if o.Color == nil {
 		o.Color = color.Black

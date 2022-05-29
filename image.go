@@ -36,14 +36,12 @@ func (s *svgWriter) write() error {
 
 	batchRead := int(float64(s.sampleLength)/res + 0.5)
 	rectWidth := width / res * 0.4 /* 40% of the width */
+	sampleHeight := s.bound.Upper - s.bound.Lower
 
 	s.s.Start(width, height)
 	if s.option.Background != nil {
 		s.s.Rect(0, 0, width, height, `fill="`+utils.ColorToHex(s.option.Background)+`"`)
 	}
-
-	floor := (s.bound.Upper + s.bound.Lower) / 2
-	sampleHeight := s.bound.Upper - s.bound.Lower
 
 	readSamples := 0
 	buf := make([]float64, batchRead)
@@ -56,11 +54,16 @@ func (s *svgWriter) write() error {
 		if len(read) == 0 {
 			break
 		}
-		min, max := utils.GetMinMax(floor, read)
 
 		x := float64(readSamples) / float64(s.sampleLength) * width
-		y := (min - s.bound.Lower) / sampleHeight * height
-		h := (max - min) / sampleHeight * height
+		// Normalize samples before passing to BarDrawer
+		// [s.bound.Lower, s.bound.Upper] -> [-1, 1]
+		for i := range read {
+			read[i] = (read[i]-s.bound.Lower)/sampleHeight*2 - 1
+		}
+		y, h := s.option.Drawer(read)
+		y *= height
+		h *= height
 		s.s.Rect(x, y, rectWidth, h, `fill="`+utils.ColorToHex(s.option.Color)+`"`)
 
 		readSamples += len(read)

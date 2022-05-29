@@ -21,19 +21,3 @@ func Min(a, b int) int {
 	}
 	return a
 }
-
-func GetMinMax(floor float64, s []float64) (min, max float64) {
-	max, min = floor, floor
-	for _, y := range s {
-		if y > floor {
-			if y > max {
-				max = y
-			}
-		} else {
-			if y < min {
-				min = y
-			}
-		}
-	}
-	return
-}
